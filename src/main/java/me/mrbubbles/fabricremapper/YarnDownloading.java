@@ -1,5 +1,8 @@
 package me.mrbubbles.fabricremapper;
 
+import me.mrbubbles.fabricremapper.plugin.RemapperPlugin;
+import org.gradle.api.logging.Logger;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -8,7 +11,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -19,38 +21,36 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-
 public class YarnDownloading {
+
+    private static final Logger LOGGER = RemapperPlugin.getLogger();
+
     public static Path path;
 
-    public static Path resolve(String minecraftVersion) {
-        String mappingsVersion = getMappingsVersion(minecraftVersion);
-        Path currentDirectory = Paths.get("");
+    public static Path resolve(String mappingsName, Path tempDir) {
         Path mappingsTemp;
 
         try {
             String name = System.getProperty("os.name", "generic").toLowerCase(Locale.ENGLISH);
 
             if (name.contains("win")) {
-                mappingsTemp = currentDirectory.resolve("mappings.gz");
+                mappingsTemp = tempDir.resolve("mappings.gz");
             } else {
-                mappingsTemp = currentDirectory.resolve("mappings" + mappingsVersion);
+                mappingsTemp = tempDir.resolve("mappings" + mappingsName);
             }
 
-            try (InputStream inputStream = getMappingsFromMaven(mappingsVersion)) {
+            try (InputStream inputStream = getMappingsFromMaven(mappingsName)) {
                 Files.copy(inputStream, mappingsTemp, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (Exception e) {
-            Main.print("Error during downloading mappings: " + e.getMessage(), true);
+            LOGGER.error("Error during downloading mappings: " + e.getMessage());
             return null;
         }
 
         return mappingsTemp;
     }
 
-    public static Path resolveTiny2(String minecraftVersion) {
-        String mappingsVersion = getMappingsVersion(minecraftVersion);
-        Path currentDirectory = Paths.get("");
+    public static Path resolveTiny2(String mappingsVersion, Path tempDir) {
         Path mappingsTemp;
         String fileMappings = "mappings.tiny";
 
@@ -58,9 +58,9 @@ public class YarnDownloading {
             String name = System.getProperty("os.name", "generic").toLowerCase(Locale.ENGLISH);
 
             if (name.contains("win")) {
-                mappingsTemp = currentDirectory.resolve("mappings-v2.zip");
+                mappingsTemp = tempDir.resolve("mappings-v2.zip");
             } else {
-                mappingsTemp = currentDirectory.resolve("mappings-v2" + mappingsVersion);
+                mappingsTemp = tempDir.resolve("mappings-v2" + mappingsVersion);
             }
 
             try (InputStream inputStream = getTiny2Mappings(mappingsVersion)) {
@@ -69,11 +69,11 @@ public class YarnDownloading {
 
             path = mappingsTemp;
         } catch (Exception e) {
-            Main.print("Error during resolving Tiny2: " + e.getMessage(), true);
+            LOGGER.error("Error during resolving Tiny2: " + e.getMessage());
             return null;
         }
 
-        return extractFileFromZip(mappingsTemp, fileMappings, currentDirectory);
+        return extractFileFromZip(mappingsTemp, fileMappings, tempDir);
     }
 
     private static Path extractFileFromZip(Path zipPath, String targetFileName, Path outputDir) {
@@ -93,10 +93,10 @@ public class YarnDownloading {
                 }
             }
         } catch (Exception e) {
-            Main.print("Error during extracting file: " + e.getMessage(), true);
+            LOGGER.error("Error during extracting file: " + e.getMessage());
             return null;
         }
-        Main.print("File " + targetFileName + " cannot be found in " + zipPath, true);
+        LOGGER.error("File " + targetFileName + " cannot be found in " + zipPath);
         return null;
     }
 
@@ -133,7 +133,7 @@ public class YarnDownloading {
                 builds.add(Integer.parseInt(matcher.group(1)));
             }
         } catch (Exception e) {
-            Main.print("Error during getting the latest mappings build: " + e.getMessage(), true);
+            LOGGER.error("Error during getting the latest mappings build: " + e.getMessage(), true);
         }
         return builds;
     }

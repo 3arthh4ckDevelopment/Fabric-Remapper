@@ -1,40 +1,30 @@
 plugins {
-    id 'java'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'com.gradle.plugin-publish' version '1.2.1'
 }
 
 group = 'me.mrbubbles.fabricremapper'
-version = '1.1'
+version = '1.2'
 
 repositories {
     mavenCentral()
-
     maven { url 'https://maven.fabricmc.net/' }
-    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-}
-
-configurations {
-    compile
 }
 
 dependencies {
-    compile 'net.fabricmc:tiny-remapper:0.10.0'
-    compile 'net.fabricmc:access-widener:2.1.0'
-    compile 'net.sf.jopt-simple:jopt-simple:5.0.4'
-    compile 'net.fabricmc:stitch:0.6.2'
-    compile 'com.formdev:flatlaf:3.3'
-
-    configurations.compile.dependencies.each {
-        implementation(it)
-    }
+    implementation 'net.fabricmc:tiny-remapper:0.10.0'
+    implementation 'net.fabricmc:access-widener:2.1.0'
 }
 
-jar {
-    manifest {
-        attributes 'Main-Class': 'me.mrbubbles.fabricremapper.Main'
+gradlePlugin {
+    website = 'https://github.com/3arthh4ckDevelopment'
+    vcsUrl = 'https://github.com/3arthh4ckDevelopment/Fabric-Remapper'
+    plugins.create('FabricRemapper') {
+        id = 'fabric-remapper'
+        displayName = rootProject.name
+        description = 'A plugin that remaps a jar file with yarn mappings to the intermediary mappings for Minecraft Fabric mods.'
+        implementationClass = 'me.mrbubbles.fabricremapper.plugin.RemapperPlugin'
+        tags.set(['java', 'minecraft', 'yarn', 'fabric'])
     }
-    from {
-        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    exclude 'META-INF/'
-    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
 }

@@ -34,5 +34,8 @@ bin/
 .gradle/
 .idea
 
+# IntelliJ IDEA
+/.idea/
+
 # Testing
 working/

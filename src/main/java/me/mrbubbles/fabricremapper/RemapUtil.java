@@ -1,9 +1,11 @@
 package me.mrbubbles.fabricremapper;
 
+import me.mrbubbles.fabricremapper.plugin.RemapperPlugin;
 import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.accesswidener.AccessWidenerRemapper;
 import net.fabricmc.accesswidener.AccessWidenerWriter;
 import net.fabricmc.tinyremapper.TinyRemapper;
+import org.gradle.api.logging.Logger;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
@@ -24,6 +26,9 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class RemapUtil {
+
+    private static final Logger LOGGER = RemapperPlugin.getLogger();
+
     public static void remapJar(Path outputJar, TinyRemapper remapper, Map<String, String> mappings) throws IOException {
         Path tempOutputJar = Paths.get(outputJar.toString() + "_temp");
 
@@ -56,7 +61,6 @@ public class RemapUtil {
         Files.move(tempOutputJar, outputJar, StandardCopyOption.REPLACE_EXISTING);
     }
 
-
     private static byte[] readStream(InputStream inputStream) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         int nRead;
@@ -69,7 +73,6 @@ public class RemapUtil {
         buffer.flush();
         return buffer.toByteArray();
     }
-
 
     private static byte[] remapAccessWidener(byte[] accessWidenerBytes, Remapper remapper, Map<String, String> mappings) {
         AccessWidenerWriter writer = new AccessWidenerWriter();
@@ -106,17 +109,17 @@ public class RemapUtil {
         classReader.accept(classNode, 0);
 
         if (mappings.containsKey(classNode.name)) {
-            System.out.println("Find nasty class. Renaming \"" + classNode.name + "\" to \"" + mappings.get(classNode.name) + "\"");
+            LOGGER.info("Found nasty class. Renaming \"" + classNode.name + "\" to \"" + mappings.get(classNode.name) + "\"");
             classNode.name = mappings.get(classNode.name);
         }
 
         classNode.fields.parallelStream().filter(fieldNode -> mappings.containsKey(fieldNode.name)).forEach(fieldNode -> {
-            System.out.println("Find nasty field. Renaming \"" + fieldNode.name + "\" to \"" + mappings.get(fieldNode.name) + "\"");
+            LOGGER.info("Found nasty field. Renaming \"" + fieldNode.name + "\" to \"" + mappings.get(fieldNode.name) + "\"");
             fieldNode.name = mappings.get(fieldNode.name);
         });
 
         classNode.methods.parallelStream().filter(methodNode -> mappings.containsKey(methodNode.name)).forEach(methodNode -> {
-            System.out.println("Find nasty method. Renaming \"" + methodNode.name + "\" to \"" + mappings.get(methodNode.name) + "\"");
+            LOGGER.info("Found nasty method. Renaming \"" + methodNode.name + "\" to \"" + mappings.get(methodNode.name) + "\"");
             methodNode.name = mappings.get(methodNode.name);
         });
 
@@ -128,12 +131,12 @@ public class RemapUtil {
                     String ownerName = methodInsnNode.owner.substring(methodInsnNode.owner.lastIndexOf('/') + 1);
                     if (mappings.containsKey(ownerName)) {
                         String ownerDir = methodInsnNode.owner.substring(0, methodInsnNode.owner.lastIndexOf('/'));
-                        System.out.println("Find nasty class call. Renaming \"" + ownerName + "\" to \"" + mappings.get(ownerName) + "\"");
+                        LOGGER.info("Found nasty class call. Renaming \"" + ownerName + "\" to \"" + mappings.get(ownerName) + "\"");
                         methodInsnNode.owner = ownerDir + mappings.get(ownerName);
                     }
 
                     if (mappings.containsKey(methodInsnNode.name)) {
-                        System.out.println("Find nasty method call. Renaming \"" + methodInsnNode.name + "\" to \"" + mappings.get(methodInsnNode.name) + "\"");
+                        LOGGER.info("Found nasty method call. Renaming \"" + methodInsnNode.name + "\" to \"" + mappings.get(methodInsnNode.name) + "\"");
                         methodInsnNode.name = mappings.get(methodInsnNode.name);
                     }
                 } else if (currentInsn instanceof FieldInsnNode fieldInsnNode) {
@@ -141,23 +144,23 @@ public class RemapUtil {
                     String ownerName = fieldInsnNode.owner.substring(fieldInsnNode.owner.lastIndexOf('/') + 1);
                     if (mappings.containsKey(ownerName)) {
                         String ownerDir = fieldInsnNode.owner.substring(0, fieldInsnNode.owner.lastIndexOf('/'));
-                        System.out.println("Find nasty class call. Renaming \"" + ownerName + "\" to \"" + mappings.get(ownerName) + "\"");
+                        LOGGER.info("Found nasty class call. Renaming \"" + ownerName + "\" to \"" + mappings.get(ownerName) + "\"");
                         fieldInsnNode.owner = ownerDir + mappings.get(ownerName);
                     }
 
                     if (mappings.containsKey(fieldInsnNode.name)) {
-                        System.out.println("Find nasty field call. Renaming \"" + fieldInsnNode.name + "\" to \"" + mappings.get(fieldInsnNode.name) + "\"");
+                        LOGGER.info("Found nasty field call. Renaming \"" + fieldInsnNode.name + "\" to \"" + mappings.get(fieldInsnNode.name) + "\"");
                         fieldInsnNode.name = mappings.get(fieldInsnNode.name);
                     }
                 } else if (currentInsn instanceof InvokeDynamicInsnNode dynamicInsnNode) {
 
                     if (mappings.containsKey(dynamicInsnNode.name)) {
-                        System.out.println("Find nasty invoke dynamic. Renaming \"" + dynamicInsnNode.name + "\" to \"" + mappings.get(dynamicInsnNode.name) + "\"");
+                        LOGGER.info("Found nasty invoke dynamic. Renaming \"" + dynamicInsnNode.name + "\" to \"" + mappings.get(dynamicInsnNode.name) + "\"");
                         dynamicInsnNode.name = mappings.get(dynamicInsnNode.name);
                     }
 
                     if (mappings.containsKey(dynamicInsnNode.bsm.getName())) {
-                        System.out.println("Find nasty bsm. Renaming \"" + dynamicInsnNode.bsm.getName() + "\" to \"" + mappings.get(dynamicInsnNode.bsm.getName()) + "\"");
+                        LOGGER.info("Found nasty bsm. Renaming \"" + dynamicInsnNode.bsm.getName() + "\" to \"" + mappings.get(dynamicInsnNode.bsm.getName()) + "\"");
                         Handle handle = dynamicInsnNode.bsm;
                         InvokeDynamicInsnNode newDynamicInsnNode = new InvokeDynamicInsnNode(dynamicInsnNode.name, dynamicInsnNode.desc,
                                 new Handle(handle.getTag(), handle.getOwner(), mappings.get(dynamicInsnNode.bsm.getName()), handle.getDesc()), dynamicInsnNode.bsmArgs);
@@ -168,7 +171,7 @@ public class RemapUtil {
                     String cst = (String) ldcInsnNode.cst;
 
                     if (mappings.containsKey(cst)) {
-                        System.out.println("Find nasty string constant. Renaming \"" + cst + "\" to \"" + mappings.get(cst) + "\"");
+                        LOGGER.info("Found nasty string constant. Renaming \"" + cst + "\" to \"" + mappings.get(cst) + "\"");
                         ldcInsnNode.cst = mappings.get(cst);
                     }
                 }

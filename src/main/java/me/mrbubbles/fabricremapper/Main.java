@@ -1,55 +1,23 @@
 package me.mrbubbles.fabricremapper;
 
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
+import me.mrbubbles.fabricremapper.plugin.RemapperPlugin;
 import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.TinyUtils;
+import org.gradle.api.logging.Logger;
 
-import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
-import java.util.Objects;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
 public class Main {
 
-    public static Gui gui;
-
-    public static void main(String[] args) throws Exception {
-        if (System.console() != null) {
-            start(args);
-        } else (gui = new Gui()).start();
-    }
-
-    private static void start(String[] args) throws Exception {
-        OptionParser optionParser = new OptionParser();
-
-        OptionSpec<String> inputArg = optionParser.accepts("input").withRequiredArg().ofType(String.class);
-        OptionSpec<String> outputArg = optionParser.accepts("output").withRequiredArg().ofType(String.class);
-        OptionSpec<String> minecraftVersion = optionParser.accepts("minecraftVersion").withRequiredArg().ofType(String.class);
-
-        OptionSet options = optionParser.parse(args);
-
-        Path input = Paths.get(Objects.requireNonNull(getOption(options, inputArg)));
-        Path output = Paths.get(Objects.requireNonNull(getOption(options, outputArg)));
-        String mcVersion = getOption(options, minecraftVersion);
-
-        remap(input, output, mcVersion);
-    }
-
-    public static void print(String message, boolean error) {
-        (error ? System.err : System.out).println(message);
-
-        if (gui != null) gui.displayMessage(message, "", error ? JOptionPane.ERROR_MESSAGE : JOptionPane.PLAIN_MESSAGE);
-    }
+    private static final Logger LOGGER = RemapperPlugin.getLogger();
 
     public static boolean isPathValid(Path path) {
         try {
@@ -71,25 +39,23 @@ public class Main {
         return name.endsWith(".jar") || name.endsWith(".zip");
     }
 
-    public static boolean isValidMCVersion(String minecraftVersion) {
-        return minecraftVersion != null && !minecraftVersion.isEmpty() && minecraftVersion.matches("^\\d+\\.\\d+(?:\\.\\d+)?$");
+    public static boolean isValidMappingsVersion(String mappingsVersion) {
+        return mappingsVersion != null && !mappingsVersion.isEmpty() && mappingsVersion.matches("^\\d+\\.\\d+\\.\\d+\\+build\\.\\d+$");
     }
 
-    public static void remap(Path input, Path output, String minecraftVersion) throws IOException {
+    public static void remap(Path input, Path output, String mappingsVersion, Path tempDir) {
         if (!isJar(input)) {
-            print("Input is invalid! Please give a valid input.", true);
+            LOGGER.error("Input is invalid! Please give a valid input.");
             return;
         } else if (!isPathUsable(output)) {
-            print("Output is invalid! Please give a valid output.", true);
+            LOGGER.error("Output is invalid! Please give a valid output.");
             return;
-        } else if (!isValidMCVersion(minecraftVersion)) {
-            minecraftVersion = getMinecraftVersion(input);
-            if (!isValidMCVersion(minecraftVersion)) {
-                print("Minecraft version is invalid! Please give a valid Minecraft version.", true);
-                return;
-            }
+        } else if (!isValidMappingsVersion(mappingsVersion)) {
+            LOGGER.error("Mappings version is invalid! Please give a valid mappings version.");
         }
-        Path mappingsPath = YarnDownloading.resolve(minecraftVersion);
+
+        Path mappingsPath = YarnDownloading.resolve(mappingsVersion, tempDir);
+        LOGGER.info(String.valueOf(mappingsPath.toAbsolutePath()));
         String outputName = output.getFileName().toString();
         int lastIndex = outputName.lastIndexOf('.');
 
@@ -118,35 +84,30 @@ public class Main {
 
             outputConsumer.close();
         } catch (IOException e) {
-            print("Error during remapping: " + e.getMessage(), true);
+            LOGGER.error("Error during remapping: " + e.getMessage());
         }
 
-        Path mappingsTiny2 = YarnDownloading.resolveTiny2(minecraftVersion);
+        Path mappingsTiny2 = YarnDownloading.resolveTiny2(mappingsVersion, tempDir);
 
         try {
             Map<String, String> mapping = RemapUtil.getMappings(mappingsTiny2);
 
             RemapUtil.remapJar(output, remapper, mapping);
         } catch (IOException e) {
-            print("Error during obtaining Tiny v2 mappings: " + e.getMessage(), true);
+            LOGGER.error("Error during obtaining Tiny v2 mappings: " + e.getMessage());
         }
 
-        Files.delete(mappingsPath);
-        if (mappingsTiny2 != null) {
-            Files.delete(mappingsTiny2);
-        }
-        Files.delete(YarnDownloading.path);
-
-        print("Finished remapping '" + input.toFile().getName() + "'!", false);
-    }
-
-    private static <T> T getOption(OptionSet optionSet, OptionSpec<T> optionSpec) {
         try {
-            return optionSet.valueOf(optionSpec);
-        } catch (Throwable throwable) {
-            print("Error during getting option: " + throwable.getMessage(), true);
-            return null;
+            Files.delete(mappingsPath);
+            if (mappingsTiny2 != null) {
+                Files.delete(mappingsTiny2);
+            }
+            Files.delete(YarnDownloading.path);
+        } catch (IOException e) {
+            LOGGER.error("Error during deleting mappings: " + e.getMessage());
         }
+
+        LOGGER.info("Finished remapping '" + input.toFile().getName() + "'!");
     }
 
     public static String getMinecraftVersion(Path jarPath) {
@@ -174,7 +135,7 @@ public class Main {
 
             jarFile.close();
         } catch (IOException e) {
-            print("Error during getting the Minecraft version automatically: " + e.getMessage(), true);
+            LOGGER.error("Error during getting the Minecraft version automatically: " + e.getMessage(), true);
         }
 
         return minecraftVersion;
